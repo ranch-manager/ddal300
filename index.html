@@ -482,6 +482,7 @@ function renderDone(){
 
 const STAT_CLS={"입금 대기":"wait","입금 확인 · 준비 중":"paid","출고 완료":"sent","주문 취소":"cxl"};
 function renderOrders(){
+  if(SHEET_URL&&S.orders.some(o=>!o.p)){S.orders=S.orders.filter(o=>o.p);save()}
   const rows=S.orders.map((o,i)=>`<div class="line"><div><b class="num">${o.no}</b> <span class="meta">${shipName(o.ship)}</span><div class="meta">${o.items.map(i=>esc(i.n)+" ×"+i.q).join(", ")}</div></div>
     <div style="text-align:right;display:grid;gap:4px;justify-items:end"><span class="num" style="font-weight:700">${fmt(o.total)}</span><span class="stat ${STAT_CLS[o.status]||"wait"}" id="st-${i}">${esc(o.status)}</span></div>
     <div class="cx" id="cx-${i}" style="grid-column:1/-1">${cancelUI(o,i)}</div></div>`).join("");
@@ -526,12 +527,15 @@ function checkStatus(manual){
     if(!o.p||o.status==="출고 완료"||o.status==="주문 취소")return Promise.resolve();
     return fetch(`${SHEET_URL}?no=${encodeURIComponent(o.no)}&p=${encodeURIComponent(o.p.slice(-4))}`)
       .then(r=>r.json()).then(d=>{
+        if(d&&d.reason==="notfound"){o.gone=true;return}
         if(d&&d.ok&&d.status){o.status=d.status;const el=document.getElementById("st-"+i);
           if(el){el.textContent=d.status;el.className="stat "+(STAT_CLS[d.status]||"wait")}
           const cx=document.getElementById("cx-"+i);if(cx){cx.innerHTML=cancelUI(o,i);bindCancel()}}
       }).catch(()=>{});
   });
-  Promise.all(jobs).then(()=>{save();const h=document.getElementById("sthint");
+  Promise.all(jobs).then(()=>{
+    if(S.orders.some(o=>o.gone)){S.orders=S.orders.filter(o=>!o.gone);save();if(S.view==="orders")return renderOrders()}
+    save();const h=document.getElementById("sthint");
     if(h){const t=kst();h.textContent=`${t.getUTCHours()}시 ${String(t.getUTCMinutes()).padStart(2,"0")}분 기준 상태예요. 이 휴대폰에서 넣은 주문만 보여요.`}});
 }
 
