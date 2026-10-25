@@ -87,6 +87,11 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .route .arrow{flex:none;width:28px;height:1px;background:var(--gold);position:relative}
 .route .arrow::after{content:"";position:absolute;right:0;top:-3px;border:3.5px solid transparent;border-left:6px solid var(--gold);border-right:0}
 .route small{font-weight:400;opacity:.7;font-size:12px}
+.cutoff{margin-top:10px;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;border-top:1px solid rgba(255,255,255,.15);padding-top:12px}
+.cutoff .lbl{font-size:13px;font-weight:700;color:var(--gold)}
+.cutoff .clock{font-family:var(--f-mono);font-size:26px;font-weight:500;letter-spacing:.04em;line-height:1;color:var(--band-ink)}
+.cutoff .sub{width:100%;font-size:12.5px;opacity:.75}
+.cutoff.closed .lbl{color:rgba(243,239,232,.8)}
 
 /* ---------- certificate ---------- */
 .cert{margin-top:18px;border:1px solid var(--gold);background:var(--gold-soft);padding:14px 16px;display:grid;gap:8px}
@@ -275,7 +280,7 @@ const kst=()=>new Date(Date.now()+KST);
 function todayKey(){const w=kst().getUTCDay();return w===1?"mon":w===2?"tue":w===3?"wed":w===4?"thu":"wkd"}
 function route(day){
   if(day.key==="proc") return {from:"주문 다음날",to:"그다음 날",note:"냉동 택배"};
-  if(day.key==="wkd") return {from:"월요일",to:"화요일",note:"익일택배"};
+  if(day.key==="wkd") return {from:"월요일",to:"화요일",note:"금요일 오후 4시 전 입금은 당일 출고"};
   return {from:day.d+"요일",to:DOW[(day.w+1)%7]+"요일",note:"오후 4시 전 입금 시 당일 출고"};
 }
 
@@ -355,7 +360,23 @@ function paint(cv,tone,seed){
   ctx.restore();
 }
 
+function cutoffHTML(){
+  const t=kst(),wd=t.getUTCDay(),h=t.getUTCHours(),m=t.getUTCMinutes(),s=t.getUTCSeconds();
+  if(wd>=1&&wd<=5&&h<16){
+    const left=16*3600-(h*3600+m*60+s),p=n=>String(n).padStart(2,"0");
+    return `<span class="lbl">오늘 출고 마감까지</span><span class="clock num">${p(Math.floor(left/3600))}:${p(Math.floor(left%3600/60))}:${p(left%60)}</span><span class="sub">오후 4시 전에 입금하시면 오늘 바로 보내드려요.</span>`;
+  }
+  if(wd>=1&&wd<=4)return `<span class="lbl">오늘 출고는 마감됐어요</span><span class="sub">지금 입금하시면 내일 출고돼요.</span>`;
+  return `<span class="lbl">이번 주 출고는 마감됐어요</span><span class="sub">지금 입금하시면 월요일에 출고돼요.</span>`;
+}
+let cutoffTimer=null;
+function startCutoff(){
+  if(cutoffTimer)return;
+  cutoffTimer=setInterval(()=>{const el=document.getElementById("cutoff");if(!el)return;
+    el.innerHTML=cutoffHTML();el.classList.toggle("closed",!el.querySelector(".clock"))},1000);
+}
 function renderShop(){
+  startCutoff();
   const tk=todayKey();const day=DAYS.find(d=>d.key===S.day);
   const isOpen=S.day===tk||S.day==="proc";const locked=day.key==="wkd"&&tk!=="wkd";
   const rt=route(day);
@@ -390,6 +411,7 @@ function renderShop(){
     <h2>${locked?"금토일 특별세일":esc(day.title)}</h2>
     <p>${locked?"금요일 아침 단톡방 공지와 함께 열려요.":esc(day.desc)}</p>
     ${locked?"":`<div class="route"><span>${rt.from} 출발</span><span class="arrow" aria-hidden="true"></span><span>${rt.to} 도착</span><small>${rt.note}</small></div>`}
+    <div class="cutoff" id="cutoff" aria-live="off">${cutoffHTML()}</div>
   </div></section>
   <main class="gut" style="padding-bottom:120px"><div class="col">${body}
     <div class="foot"><b style="color:var(--ink)">논산딸기한우 농업회사법인㈜</b><span>직판장 · 충남 논산시 연무읍 연무로 186-1</span><span>주문·문의 041-733-1611</span><span>한돈자조금 인증 한돈인증점</span></div>
@@ -416,7 +438,7 @@ function renderCart(){
     <div class="list">${items}</div>
     <fieldset><legend>받는 방법</legend>
       ${pickOnly?`<p class="note" style="margin:0 0 10px"><b>생간이 들어 있어서 직판장 픽업으로만 받을 수 있어요.</b> 택배로 받으실 고기는 따로 주문해 주세요.</p>`:""}<label class="opt${isSale||pickOnly?" dis":""}"><input type="radio" name="ship" id="ship-same" value="same" ${S.ship==="same"?"checked":""} ${isSale||pickOnly?"disabled":""}><span><b>당일택배</b> <span class="num">6,000원</span><small>오후 4시 전 입금 시 · 대전·세종·논산 <span class="demo">예시</span>${isSale?" · 특별세일은 제외":""}</small></span></label>
-      <label class="opt${pickOnly?" dis":""}"><input type="radio" name="ship" id="ship-next" value="next" ${S.ship==="next"?"checked":""} ${pickOnly?"disabled":""}><span><b>익일택배</b> <span class="num">4,000원</span><small>${isSale?"월요일 출발, 화요일 도착":"전국 · 아이스박스 냉장 포장"}</small></span></label>
+      <label class="opt${pickOnly?" dis":""}"><input type="radio" name="ship" id="ship-next" value="next" ${S.ship==="next"?"checked":""} ${pickOnly?"disabled":""}><span><b>익일택배</b> <span class="num">4,000원</span><small>${isSale?"금요일 오후 4시 전 입금은 당일 출고, 이후는 월요일 출고":"전국 · 아이스박스 냉장 포장"}</small></span></label>
       <label class="opt"><input type="radio" name="ship" id="ship-pick" value="pick" ${S.ship==="pick"?"checked":""}><span><b>직판장 픽업</b> <span class="num">무료</span><small>논산시 연무읍 연무로 186-1</small></span></label>
     </fieldset>
     <fieldset><legend>받는 분</legend><div class="f-grid">
@@ -425,8 +447,8 @@ function renderCart(){
       <label class="f" id="addrWrap">주소<textarea id="f-addr" rows="2" autocomplete="street-address">${esc(S.form.addr)}</textarea></label></div>
     </fieldset>
     <div class="totals num"><div><span>상품 금액</span><span>${fmt(sub)}</span></div><div><span>배송비</span><span id="feeOut"></span></div><div class="grand"><span>입금하실 금액</span><span id="grandOut"></span></div></div>
-    <p class="note"><b>계좌이체로 받아요.</b> 농협 351-1377-6177-93 (논산 딸기 한우 농업회사법인 주식회사). <b>입금자명은 주문자 이름과 꼭 같게</b> 넣어 주세요. <b>오후 4시 전 입금은 당일 출고</b>, 4시 이후 입금은 다음 날 출고돼요. 금·토·일 주문은 월요일에 출고돼요.</p>
-    <p class="note"><b>취소 안내</b> 입금 전에는 주문조회에서 바로 취소할 수 있어요. 입금 후에는 단톡방이나 전화로 연락 주세요. 출고된 뒤에는 신선식품 특성상 취소·반품이 어려워요.</p>
+    <p class="note"><b>계좌이체로 받아요.</b> 농협 351-1377-6177-93 (논산 딸기 한우 농업회사법인 주식회사). <b>입금자명은 주문자 이름과 꼭 같게</b> 넣어 주세요. <b>오후 4시 전 입금은 당일 출고</b>, 4시 이후 입금은 다음 날 출고돼요. 택배는 금요일까지 나가고, 금요일 4시 이후와 토·일 주문은 월요일에 출고돼요.</p>
+    <p class="note"><b>취소 안내</b> 입금 전에는 주문조회에서 바로 취소할 수 있어요. 입금 후에는 전화(041-733-1611)로 연락 주세요. 출고된 뒤에는 신선식품 특성상 취소·반품이 어려워요.</p>
     <div class="err" id="ferr"></div>
     <button class="btn" id="place" style="width:100%">주문 넣기</button>
   </div></div>`;
@@ -472,11 +494,11 @@ function renderDone(){
       <div class="row"><span>입금자명</span><b style="color:var(--wine)">${esc(o.name||"")}</b></div>
     </div>
     ${(()=>{const t=kst(),h=t.getUTCHours(),m=t.getUTCMinutes(),wd=t.getUTCDay();if(o.ship==="pick")return "";
-      if(wd===5||wd===6||wd===0)return `<p class="note" style="margin:0;color:var(--ink)"><b>금·토·일 주문은 월요일에 한꺼번에 출고돼요.</b> 화요일에 받아보실 수 있어요.</p>`;
+      if(wd===6||wd===0||(wd===5&&h>=16))return `<p class="note" style="margin:0;color:var(--ink)"><b>월요일에 출고돼요.</b> 금요일 오후 4시 이후와 토·일 주문은 월요일에 한꺼번에 보내드려요. 화요일에 받아보실 수 있어요.</p>`;
       if(h<16){const left=(16*60)-(h*60+m);return `<p class="note" style="margin:0;color:var(--ink)"><b>오후 4시 전에 입금하시면 오늘 출고돼요.</b> 남은 시간 ${Math.floor(left/60)}시간 ${left%60}분</p>`}
       return `<p class="note" style="margin:0;color:var(--ink)"><b>오후 4시가 지나서 내일 출고돼요.</b> 지금 입금하셔도 출고는 내일이에요.</p>`})()}
     <p class="note" style="margin:0;color:var(--ink)"><b style="color:var(--wine)">입금자명은 주문자 이름과 꼭 같아야 해요.</b> 이름이 다르면 누구 주문인지 확인이 안 돼서 출고가 늦어져요.</p>
-    <p class="hint"> 입금이 확인되면 단톡방으로 출고 소식을 알려드려요.</p>
+    <p class="hint">입금 확인이랑 출고 상태는 <b>오른쪽 위 주문조회</b>에서 바로 확인하실 수 있어요.</p>
     <button class="btn dark" id="again">계속 둘러보기</button>
   </div></div>`;
   document.getElementById("cp").onclick=e=>{
@@ -504,7 +526,7 @@ function renderOrders(){
 function cancelUI(o,i){
   if(!SHEET_URL||!o.p)return "";
   if(o.status==="입금 대기")return `<button class="cxbtn" data-cx="${i}">주문 취소</button>`;
-  if(o.status==="입금 확인 · 준비 중")return `<span class="meta">취소는 단톡방이나 041-733-1611로 연락 주세요.</span>`;
+  if(o.status==="입금 확인 · 준비 중")return `<span class="meta">취소는 전화 041-733-1611로 연락 주세요.</span>`;
   return "";
 }
 function bindCancel(){
@@ -520,7 +542,7 @@ function bindCancel(){
         .then(d=>{
           if(d&&d.ok&&d.status){o.status=d.status;save()}
           if(o.status==="주문 취소"){go("orders")}
-          else{box.innerHTML=`<span class="meta">이미 입금이 확인돼서 여기서는 취소가 안 돼요. 단톡방이나 041-733-1611로 연락 주세요.</span>`;go("orders")}
+          else{box.innerHTML=`<span class="meta">이미 입금이 확인돼서 여기서는 취소가 안 돼요. 전화 041-733-1611로 연락 주세요.</span>`;go("orders")}
         })
         .catch(()=>{box.innerHTML=`<span class="meta">취소가 전송되지 않았어요. 인터넷 연결을 확인하고 다시 눌러 주세요.</span>`});
     };
