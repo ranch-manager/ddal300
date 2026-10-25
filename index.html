@@ -524,7 +524,7 @@ function checkStatus(manual){
   if(!SHEET_URL)return;
   const hint=document.getElementById("sthint");if(manual&&hint)hint.textContent="상태 확인 중…";
   const jobs=S.orders.map((o,i)=>{
-    if(!o.p||o.status==="출고 완료"||o.status==="주문 취소")return Promise.resolve();
+    if(!o.p)return Promise.resolve();
     return fetch(`${SHEET_URL}?no=${encodeURIComponent(o.no)}&p=${encodeURIComponent(o.p.slice(-4))}`)
       .then(r=>r.json()).then(d=>{
         if(d&&d.reason==="notfound"){o.gone=true;return}
