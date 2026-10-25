@@ -178,6 +178,12 @@ label.f input,label.f textarea{font:inherit;font-size:15px;color:var(--ink);back
 .stat{font-size:11px;font-weight:700;color:var(--warn);background:var(--warn-soft);padding:2px 7px}
 .stat.paid{color:var(--wine);background:var(--wine-soft)}
 .stat.sent{color:var(--ok);background:var(--sub)}
+.stat.cxl{color:var(--muted);background:var(--sub);text-decoration:line-through}
+.cx{margin-top:6px}
+.cx:empty{display:none}
+.cxbtn{border:1px solid var(--wine);color:var(--wine);background:var(--bg);font-size:12px;font-weight:700;padding:4px 10px}
+.cxbtn.ghost{border-color:var(--line);color:var(--muted)}
+.cxbtn:disabled{opacity:.5}
 .empty{color:var(--muted);text-align:center;padding:48px 0;font-size:14px}
 .hint{font-size:12.5px;color:var(--muted)}
 @media (prefers-reduced-motion:no-preference){.put,.btn{transition:background .15s,transform .1s}.put:active,.btn:active{transform:scale(.98)}}
@@ -420,6 +426,7 @@ function renderCart(){
     </fieldset>
     <div class="totals num"><div><span>상품 금액</span><span>${fmt(sub)}</span></div><div><span>배송비</span><span id="feeOut"></span></div><div class="grand"><span>입금하실 금액</span><span id="grandOut"></span></div></div>
     <p class="note"><b>계좌이체로 받아요.</b> 주문 후 나오는 계좌로 입금하시면 단톡방에서 확인 후 출고해 드려요.</p>
+    <p class="note"><b>취소 안내</b> 입금 전에는 주문조회에서 바로 취소할 수 있어요. 입금 후에는 단톡방이나 전화로 연락 주세요. 출고된 뒤에는 신선식품 특성상 취소·반품이 어려워요.</p>
     <div class="err" id="ferr"></div>
     <button class="btn" id="place" style="width:100%">주문 넣기</button>
   </div></div>`;
@@ -473,27 +480,55 @@ function renderDone(){
   document.getElementById("again").onclick=()=>go("shop");
 }
 
-const STAT_CLS={"입금 대기":"wait","입금 확인 · 준비 중":"paid","출고 완료":"sent"};
+const STAT_CLS={"입금 대기":"wait","입금 확인 · 준비 중":"paid","출고 완료":"sent","주문 취소":"cxl"};
 function renderOrders(){
   const rows=S.orders.map((o,i)=>`<div class="line"><div><b class="num">${o.no}</b> <span class="meta">${shipName(o.ship)}</span><div class="meta">${o.items.map(i=>esc(i.n)+" ×"+i.q).join(", ")}</div></div>
-    <div style="text-align:right;display:grid;gap:4px;justify-items:end"><span class="num" style="font-weight:700">${fmt(o.total)}</span><span class="stat ${STAT_CLS[o.status]||"wait"}" id="st-${i}">${esc(o.status)}</span></div></div>`).join("");
+    <div style="text-align:right;display:grid;gap:4px;justify-items:end"><span class="num" style="font-weight:700">${fmt(o.total)}</span><span class="stat ${STAT_CLS[o.status]||"wait"}" id="st-${i}">${esc(o.status)}</span></div>
+    <div class="cx" id="cx-${i}" style="grid-column:1/-1">${cancelUI(o,i)}</div></div>`).join("");
   app.innerHTML=`<div class="page gut"><div class="col">${head("주문조회")}
     ${rows?`<div class="list">${rows}</div>`:`<div class="empty">아직 주문이 없어요.<br>오늘 잡은 고기부터 둘러보세요.</div>`}
     ${rows&&SHEET_URL?`<button class="put" id="refresh" style="width:100%;margin-top:14px;flex:none">주문 상태 새로고침</button>`:""}
     <p class="hint" style="margin-top:12px" id="sthint">이 휴대폰에서 넣은 주문만 보여요.</p></div></div>`;
   document.getElementById("back").onclick=()=>go("shop");
   const r=document.getElementById("refresh");if(r)r.onclick=()=>checkStatus(true);
+  bindCancel();
   checkStatus(false);
+}
+function cancelUI(o,i){
+  if(!SHEET_URL||!o.p)return "";
+  if(o.status==="입금 대기")return `<button class="cxbtn" data-cx="${i}">주문 취소</button>`;
+  if(o.status==="입금 확인 · 준비 중")return `<span class="meta">취소는 단톡방이나 041-733-1611로 연락 주세요.</span>`;
+  return "";
+}
+function bindCancel(){
+  app.querySelectorAll("[data-cx]").forEach(b=>b.onclick=()=>{
+    const i=+b.dataset.cx;const box=document.getElementById("cx-"+i);
+    box.innerHTML=`<span class="meta">이 주문을 취소할까요?</span> <button class="cxbtn" data-yes="${i}">네, 취소할게요</button> <button class="cxbtn ghost" data-no="${i}">아니요</button>`;
+    box.querySelector("[data-no]").onclick=()=>{box.innerHTML=cancelUI(S.orders[i],i);bindCancel()};
+    box.querySelector("[data-yes]").onclick=e=>{
+      const o=S.orders[i];e.target.disabled=true;e.target.textContent="취소하는 중…";
+      fetch(SHEET_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"cancel",no:o.no,p:o.p.slice(-4)})})
+        .then(()=>new Promise(r=>setTimeout(r,1200)))
+        .then(()=>fetch(`${SHEET_URL}?no=${encodeURIComponent(o.no)}&p=${encodeURIComponent(o.p.slice(-4))}`)).then(r=>r.json())
+        .then(d=>{
+          if(d&&d.ok&&d.status){o.status=d.status;save()}
+          if(o.status==="주문 취소"){go("orders")}
+          else{box.innerHTML=`<span class="meta">이미 입금이 확인돼서 여기서는 취소가 안 돼요. 단톡방이나 041-733-1611로 연락 주세요.</span>`;go("orders")}
+        })
+        .catch(()=>{box.innerHTML=`<span class="meta">취소가 전송되지 않았어요. 인터넷 연결을 확인하고 다시 눌러 주세요.</span>`});
+    };
+  });
 }
 function checkStatus(manual){
   if(!SHEET_URL)return;
   const hint=document.getElementById("sthint");if(manual&&hint)hint.textContent="상태 확인 중…";
   const jobs=S.orders.map((o,i)=>{
-    if(!o.p||o.status==="출고 완료")return Promise.resolve();
+    if(!o.p||o.status==="출고 완료"||o.status==="주문 취소")return Promise.resolve();
     return fetch(`${SHEET_URL}?no=${encodeURIComponent(o.no)}&p=${encodeURIComponent(o.p.slice(-4))}`)
       .then(r=>r.json()).then(d=>{
         if(d&&d.ok&&d.status){o.status=d.status;const el=document.getElementById("st-"+i);
-          if(el){el.textContent=d.status;el.className="stat "+(STAT_CLS[d.status]||"wait")}}
+          if(el){el.textContent=d.status;el.className="stat "+(STAT_CLS[d.status]||"wait")}
+          const cx=document.getElementById("cx-"+i);if(cx){cx.innerHTML=cancelUI(o,i);bindCancel()}}
       }).catch(()=>{});
   });
   Promise.all(jobs).then(()=>{save();const h=document.getElementById("sthint");
