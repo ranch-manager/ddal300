@@ -425,7 +425,7 @@ function renderCart(){
       <label class="f" id="addrWrap">주소<textarea id="f-addr" rows="2" autocomplete="street-address">${esc(S.form.addr)}</textarea></label></div>
     </fieldset>
     <div class="totals num"><div><span>상품 금액</span><span>${fmt(sub)}</span></div><div><span>배송비</span><span id="feeOut"></span></div><div class="grand"><span>입금하실 금액</span><span id="grandOut"></span></div></div>
-    <p class="note"><b>계좌이체로 받아요.</b> 농협 351-1377-6177-93 (논산 딸기 한우 농업회사법인 주식회사). <b>입금자명은 주문자 이름과 꼭 같게</b> 넣어 주세요. <b>오후 4시 전 입금은 당일 출고</b>, 4시 이후 입금은 다음 날 출고돼요.</p>
+    <p class="note"><b>계좌이체로 받아요.</b> 농협 351-1377-6177-93 (논산 딸기 한우 농업회사법인 주식회사). <b>입금자명은 주문자 이름과 꼭 같게</b> 넣어 주세요. <b>오후 4시 전 입금은 당일 출고</b>, 4시 이후 입금은 다음 날 출고돼요. 금·토·일 주문은 월요일에 출고돼요.</p>
     <p class="note"><b>취소 안내</b> 입금 전에는 주문조회에서 바로 취소할 수 있어요. 입금 후에는 단톡방이나 전화로 연락 주세요. 출고된 뒤에는 신선식품 특성상 취소·반품이 어려워요.</p>
     <div class="err" id="ferr"></div>
     <button class="btn" id="place" style="width:100%">주문 넣기</button>
@@ -471,7 +471,8 @@ function renderDone(){
       <div class="row"><span>예금주</span><span style="text-align:right">논산 딸기 한우 농업회사법인 주식회사</span></div>
       <div class="row"><span>입금자명</span><b style="color:var(--wine)">${esc(o.name||"")}</b></div>
     </div>
-    ${(()=>{const t=kst(),h=t.getUTCHours(),m=t.getUTCMinutes();if(o.ship==="pick")return "";
+    ${(()=>{const t=kst(),h=t.getUTCHours(),m=t.getUTCMinutes(),wd=t.getUTCDay();if(o.ship==="pick")return "";
+      if(wd===5||wd===6||wd===0)return `<p class="note" style="margin:0;color:var(--ink)"><b>금·토·일 주문은 월요일에 한꺼번에 출고돼요.</b> 화요일에 받아보실 수 있어요.</p>`;
       if(h<16){const left=(16*60)-(h*60+m);return `<p class="note" style="margin:0;color:var(--ink)"><b>오후 4시 전에 입금하시면 오늘 출고돼요.</b> 남은 시간 ${Math.floor(left/60)}시간 ${left%60}분</p>`}
       return `<p class="note" style="margin:0;color:var(--ink)"><b>오후 4시가 지나서 내일 출고돼요.</b> 지금 입금하셔도 출고는 내일이에요.</p>`})()}
     <p class="note" style="margin:0;color:var(--ink)"><b style="color:var(--wine)">입금자명은 주문자 이름과 꼭 같아야 해요.</b> 이름이 다르면 누구 주문인지 확인이 안 돼서 출고가 늦어져요.</p>
