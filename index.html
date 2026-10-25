@@ -276,7 +276,7 @@ function todayKey(){const w=kst().getUTCDay();return w===1?"mon":w===2?"tue":w==
 function route(day){
   if(day.key==="proc") return {from:"주문 다음날",to:"그다음 날",note:"냉동 택배"};
   if(day.key==="wkd") return {from:"월요일",to:"화요일",note:"익일택배"};
-  return {from:day.d+"요일",to:DOW[(day.w+1)%7]+"요일",note:"당일택배는 "+day.d+"요일 저녁"};
+  return {from:day.d+"요일",to:DOW[(day.w+1)%7]+"요일",note:"오후 4시 전 입금 시 당일 출고"};
 }
 
 const S={in:store.get("dh_in",false),day:todayKey(),cart:store.get("dh_cart",{}),view:"shop",ship:"next",form:{name:"",phone:"",addr:""},last:null,orders:store.get("dh_orders",[])};
@@ -415,17 +415,17 @@ function renderCart(){
   app.innerHTML=`<div class="page gut"><div class="col">${head("주문서")}
     <div class="list">${items}</div>
     <fieldset><legend>받는 방법</legend>
-      ${pickOnly?`<p class="note" style="margin:0 0 10px"><b>생간이 들어 있어서 직판장 픽업으로만 받을 수 있어요.</b> 택배로 받으실 고기는 따로 주문해 주세요.</p>`:""}<label class="opt${isSale||pickOnly?" dis":""}"><input type="radio" name="ship" id="ship-same" value="same" ${S.ship==="same"?"checked":""} ${isSale||pickOnly?"disabled":""}><span><b>당일택배</b> <span class="num">6,000원</span><small>오후 2시 전 주문 · 대전·세종·논산 <span class="demo">예시</span>${isSale?" · 특별세일은 제외":""}</small></span></label>
+      ${pickOnly?`<p class="note" style="margin:0 0 10px"><b>생간이 들어 있어서 직판장 픽업으로만 받을 수 있어요.</b> 택배로 받으실 고기는 따로 주문해 주세요.</p>`:""}<label class="opt${isSale||pickOnly?" dis":""}"><input type="radio" name="ship" id="ship-same" value="same" ${S.ship==="same"?"checked":""} ${isSale||pickOnly?"disabled":""}><span><b>당일택배</b> <span class="num">6,000원</span><small>오후 4시 전 입금 시 · 대전·세종·논산 <span class="demo">예시</span>${isSale?" · 특별세일은 제외":""}</small></span></label>
       <label class="opt${pickOnly?" dis":""}"><input type="radio" name="ship" id="ship-next" value="next" ${S.ship==="next"?"checked":""} ${pickOnly?"disabled":""}><span><b>익일택배</b> <span class="num">4,000원</span><small>${isSale?"월요일 출발, 화요일 도착":"전국 · 아이스박스 냉장 포장"}</small></span></label>
       <label class="opt"><input type="radio" name="ship" id="ship-pick" value="pick" ${S.ship==="pick"?"checked":""}><span><b>직판장 픽업</b> <span class="num">무료</span><small>논산시 연무읍 연무로 186-1</small></span></label>
     </fieldset>
     <fieldset><legend>받는 분</legend><div class="f-grid">
-      <label class="f">이름<input id="f-name" value="${esc(S.form.name)}" autocomplete="name"></label>
+      <label class="f">주문자 이름 · 입금자명과 같아야 해요<input id="f-name" value="${esc(S.form.name)}" autocomplete="name"></label>
       <label class="f">연락처<input id="f-phone" value="${esc(S.form.phone)}" inputmode="tel" autocomplete="tel" placeholder="010-0000-0000"></label>
       <label class="f" id="addrWrap">주소<textarea id="f-addr" rows="2" autocomplete="street-address">${esc(S.form.addr)}</textarea></label></div>
     </fieldset>
     <div class="totals num"><div><span>상품 금액</span><span>${fmt(sub)}</span></div><div><span>배송비</span><span id="feeOut"></span></div><div class="grand"><span>입금하실 금액</span><span id="grandOut"></span></div></div>
-    <p class="note"><b>계좌이체로 받아요.</b> 주문 후 나오는 계좌로 입금하시면 단톡방에서 확인 후 출고해 드려요.</p>
+    <p class="note"><b>계좌이체로 받아요.</b> 농협 351-1377-6177-93 (논산 딸기 한우 농업회사법인 주식회사). <b>입금자명은 주문자 이름과 꼭 같게</b> 넣어 주세요. <b>오후 4시 전 입금은 당일 출고</b>, 4시 이후 입금은 다음 날 출고돼요.</p>
     <p class="note"><b>취소 안내</b> 입금 전에는 주문조회에서 바로 취소할 수 있어요. 입금 후에는 단톡방이나 전화로 연락 주세요. 출고된 뒤에는 신선식품 특성상 취소·반품이 어려워요.</p>
     <div class="err" id="ferr"></div>
     <button class="btn" id="place" style="width:100%">주문 넣기</button>
@@ -444,7 +444,7 @@ function renderCart(){
     if(S.ship!=="pick"&&addr.trim().length<6)return err.textContent="배송 주소를 적어 주세요.";
     const d=kst();const no=`${String(d.getUTCMonth()+1).padStart(2,"0")}${String(d.getUTCDate()).padStart(2,"0")}-${String(d.getUTCHours()).padStart(2,"0")}${String(d.getUTCMinutes()).padStart(2,"0")}-${Math.floor(Math.random()*90)+10}`;
     const lines=cartLines();const total=sub+feeFor(S.ship,sub);
-    const order={no,p:phone.replace(/\D/g,""),items:lines.map(l=>({n:l.c.name,q:l.q})),ship:S.ship,total,status:"입금 대기"};
+    const order={no,name:name.trim(),p:phone.replace(/\D/g,""),items:lines.map(l=>({n:l.c.name,q:l.q})),ship:S.ship,total,status:"입금 대기"};
     const btn=document.getElementById("place");
     const finish=()=>{S.orders.unshift(order);S.last=order;S.cart={};save();go("done")};
     if(!SHEET_URL) return finish();
@@ -467,10 +467,15 @@ function renderDone(){
       <div class="row"><span>주문번호</span><b>${o.no}</b></div>
       <div class="row"><span>받는 방법</span><span>${shipName(o.ship)}</span></div>
       <div class="row"><span>입금 금액</span><b style="color:var(--wine)">${fmt(o.total)}</b></div>
-      <div class="row" style="align-items:center"><span>입금 계좌</span><span><span id="acct">농협 000-0000-0000-00</span> <button class="copy" id="cp">복사</button></span></div>
-      <div class="row"><span>예금주</span><span>논산딸기한우(주) <span class="demo">예시</span></span></div>
+      <div class="row" style="align-items:center"><span>입금 계좌</span><span><span id="acct">농협 351-1377-6177-93</span> <button class="copy" id="cp">복사</button></span></div>
+      <div class="row"><span>예금주</span><span style="text-align:right">논산 딸기 한우 농업회사법인 주식회사</span></div>
+      <div class="row"><span>입금자명</span><b style="color:var(--wine)">${esc(o.name||"")}</b></div>
     </div>
-    <p class="hint">입금자명은 주문하신 분 이름으로 해주세요. 입금이 확인되면 단톡방으로 출고 소식을 알려드려요.</p>
+    ${(()=>{const t=kst(),h=t.getUTCHours(),m=t.getUTCMinutes();if(o.ship==="pick")return "";
+      if(h<16){const left=(16*60)-(h*60+m);return `<p class="note" style="margin:0;color:var(--ink)"><b>오후 4시 전에 입금하시면 오늘 출고돼요.</b> 남은 시간 ${Math.floor(left/60)}시간 ${left%60}분</p>`}
+      return `<p class="note" style="margin:0;color:var(--ink)"><b>오후 4시가 지나서 내일 출고돼요.</b> 지금 입금하셔도 출고는 내일이에요.</p>`})()}
+    <p class="note" style="margin:0;color:var(--ink)"><b style="color:var(--wine)">입금자명은 주문자 이름과 꼭 같아야 해요.</b> 이름이 다르면 누구 주문인지 확인이 안 돼서 출고가 늦어져요.</p>
+    <p class="hint"> 입금이 확인되면 단톡방으로 출고 소식을 알려드려요.</p>
     <button class="btn dark" id="again">계속 둘러보기</button>
   </div></div>`;
   document.getElementById("cp").onclick=e=>{
