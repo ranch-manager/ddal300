@@ -176,6 +176,8 @@ label.f input,label.f textarea{font:inherit;font-size:15px;color:var(--ink);back
 .slip .row{display:flex;justify-content:space-between;gap:10px}
 .copy{border:1px solid var(--line);background:var(--bg);font-size:12px;padding:2px 8px}
 .stat{font-size:11px;font-weight:700;color:var(--warn);background:var(--warn-soft);padding:2px 7px}
+.stat.paid{color:var(--wine);background:var(--wine-soft)}
+.stat.sent{color:var(--ok);background:var(--sub)}
 .empty{color:var(--muted);text-align:center;padding:48px 0;font-size:14px}
 .hint{font-size:12.5px;color:var(--muted)}
 @media (prefers-reduced-motion:no-preference){.put,.btn{transition:background .15s,transform .1s}.put:active,.btn:active{transform:scale(.98)}}
@@ -435,7 +437,7 @@ function renderCart(){
     if(S.ship!=="pick"&&addr.trim().length<6)return err.textContent="배송 주소를 적어 주세요.";
     const d=kst();const no=`${String(d.getUTCMonth()+1).padStart(2,"0")}${String(d.getUTCDate()).padStart(2,"0")}-${String(d.getUTCHours()).padStart(2,"0")}${String(d.getUTCMinutes()).padStart(2,"0")}-${Math.floor(Math.random()*90)+10}`;
     const lines=cartLines();const total=sub+feeFor(S.ship,sub);
-    const order={no,items:lines.map(l=>({n:l.c.name,q:l.q})),ship:S.ship,total,status:"입금 대기"};
+    const order={no,p:phone.replace(/\D/g,""),items:lines.map(l=>({n:l.c.name,q:l.q})),ship:S.ship,total,status:"입금 대기"};
     const btn=document.getElementById("place");
     const finish=()=>{S.orders.unshift(order);S.last=order;S.cart={};save();go("done")};
     if(!SHEET_URL) return finish();
@@ -471,13 +473,31 @@ function renderDone(){
   document.getElementById("again").onclick=()=>go("shop");
 }
 
+const STAT_CLS={"입금 대기":"wait","입금 확인 · 준비 중":"paid","출고 완료":"sent"};
 function renderOrders(){
-  const rows=S.orders.map(o=>`<div class="line"><div><b class="num">${o.no}</b> <span class="meta">${shipName(o.ship)}</span><div class="meta">${o.items.map(i=>esc(i.n)+" ×"+i.q).join(", ")}</div></div>
-    <div style="text-align:right;display:grid;gap:4px;justify-items:end"><span class="num" style="font-weight:700">${fmt(o.total)}</span><span class="stat">${o.status}</span></div></div>`).join("");
+  const rows=S.orders.map((o,i)=>`<div class="line"><div><b class="num">${o.no}</b> <span class="meta">${shipName(o.ship)}</span><div class="meta">${o.items.map(i=>esc(i.n)+" ×"+i.q).join(", ")}</div></div>
+    <div style="text-align:right;display:grid;gap:4px;justify-items:end"><span class="num" style="font-weight:700">${fmt(o.total)}</span><span class="stat ${STAT_CLS[o.status]||"wait"}" id="st-${i}">${esc(o.status)}</span></div></div>`).join("");
   app.innerHTML=`<div class="page gut"><div class="col">${head("주문조회")}
     ${rows?`<div class="list">${rows}</div>`:`<div class="empty">아직 주문이 없어요.<br>오늘 잡은 고기부터 둘러보세요.</div>`}
-    <p class="hint" style="margin-top:16px">이 휴대폰에서 넣은 주문만 보여요. 입금·출고 소식은 단톡방으로 알려드려요.</p></div></div>`;
+    ${rows&&SHEET_URL?`<button class="put" id="refresh" style="width:100%;margin-top:14px;flex:none">주문 상태 새로고침</button>`:""}
+    <p class="hint" style="margin-top:12px" id="sthint">이 휴대폰에서 넣은 주문만 보여요.</p></div></div>`;
   document.getElementById("back").onclick=()=>go("shop");
+  const r=document.getElementById("refresh");if(r)r.onclick=()=>checkStatus(true);
+  checkStatus(false);
+}
+function checkStatus(manual){
+  if(!SHEET_URL)return;
+  const hint=document.getElementById("sthint");if(manual&&hint)hint.textContent="상태 확인 중…";
+  const jobs=S.orders.map((o,i)=>{
+    if(!o.p||o.status==="출고 완료")return Promise.resolve();
+    return fetch(`${SHEET_URL}?no=${encodeURIComponent(o.no)}&p=${encodeURIComponent(o.p.slice(-4))}`)
+      .then(r=>r.json()).then(d=>{
+        if(d&&d.ok&&d.status){o.status=d.status;const el=document.getElementById("st-"+i);
+          if(el){el.textContent=d.status;el.className="stat "+(STAT_CLS[d.status]||"wait")}}
+      }).catch(()=>{});
+  });
+  Promise.all(jobs).then(()=>{save();const h=document.getElementById("sthint");
+    if(h){const t=kst();h.textContent=`${t.getUTCHours()}시 ${String(t.getUTCMinutes()).padStart(2,"0")}분 기준 상태예요. 이 휴대폰에서 넣은 주문만 보여요.`}});
 }
 
 render();
